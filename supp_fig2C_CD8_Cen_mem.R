@@ -1,5 +1,5 @@
 
-#title: "script_more_violinplots_paper"
+#title: "Script to generate UMAP and feature plots for supple 2C"
 #author: "Neerja Katiyar"
 #date: "2026-01-28"
 
