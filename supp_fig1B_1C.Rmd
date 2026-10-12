@@ -1,0 +1,76 @@
+
+---
+title : "UMAP with patient ID and Feature plot for CD163"
+author: "Lindsay Clark, Neerja Katiyar"
+---
+
+```{r, libraries, include = FALSE, echo=TRUE}
+library(dplyr)
+library(ggplot2)
+library(kableExtra)
+library(gplots)
+library(ggrepel)
+```
+
+```{r}
+# See barplots_dge_2025-07.qmd
+seur_df <- readRDS("./lindsay/data/cell_metadata_2025-10-15.rds")
+
+sample_metadata <-
+	  unique(seur_df[,c("orig.ident", "time_point", "category",
+			                        "batch", "trial", "individual")])
+
+celltypes <- sort(unique((seur_df$kobe_idents)))
+celltype_colors <- dittoSeq::dittoColors(1)[seq_along(celltypes)]
+names(celltype_colors) <- celltypes
+
+group_colors <- RColorBrewer::brewer.pal(4, "Paired")
+names(group_colors) <-
+	  c("Mild_Tox_Day28", "Mild_Tox_preA", "Severe_Tox_Day28",
+	        "Severe_Tox_preA")
+```
+
+## Filtering
+
+Kobe's filtering was slightly different from ours. Within Kobe's annotation, 93.9% of the cells were also in our object, and within our object, 97.7% of the cells were also in Kobe's object. The 250,117 cells overlapping between the two datasets were used in downstream analysis. Total cells per sample are listed in @tbl-cellcounts.
+
+```{r}
+#| label: tbl-cellcounts
+#| tbl-cap: "Cells per sample overlapping between Kobe's and Neerja's filtering."
+seur_df %>%
+	  filter(!is.na(kobe_idents)) %>%
+	    group_by(orig.ident) %>%
+	      summarize(count = n()) %>%
+	        kable() %>% kable_styling()
+```
+
+## Generate UMAPs with new annotations from viewmastR and correct batch correction.
+```{r}
+
+seur <- readRDS(file = "./objects/PLAT_annotated_celltypes_cellbender_new_idents_chk_viewmastR.rds")
+
+# Visualization
+pdf("./plots/supp_fig1B_UMAP.pdf")
+DimPlot(seur, reduction = "umap", group.by = c("orig.ident"), label=T) + NoLegend() +
+	theme(plot.title = element_text(size = 16),        # Plot title
+			                          axis.title.x = element_text(size = 16),      # X-axis title
+			                          axis.title.y = element_text(size = 16),      # Y-axis title
+						                                axis.text.x = element_text(size = 16),       # Y-axis labels
+						                                axis.text.y = element_text(size = 16),       # Y-axis labels
+						          legend.title = element_text(size = 16),      # Legend title
+							          legend.text = element_text(size = 16))
+dev.off()
+
+# Visualization
+pdf("./plots/supp_fig1C_UMAP.pdf")
+FeaturePlot(seur, reduction = "umap", feature = "CD163") +
+	theme(plot.title = element_text(size = 16),        # Plot title
+			                          axis.title.x = element_text(size = 16),      # X-axis title
+			                          axis.title.y = element_text(size = 16),      # Y-axis title
+						                                axis.text.x = element_text(size = 16),       # Y-axis labels
+						                                axis.text.y = element_text(size = 16),       # Y-axis labels
+						          legend.title = element_text(size = 16),      # Legend title
+							          legend.text = element_text(size = 16))
+dev.off()
+
+
