@@ -1,0 +1,63 @@
+
+```{r}
+library(dplyr)
+library(ggplot2)
+library(kableExtra)
+library(gplots)
+library(Seurat)
+library(BPCells) # remotes::install_github("bnprks/BPCells/r")
+library(patchwork)
+library(dittoSeq)
+library(cowplot)
+options(future.globals.maxSize = 1e9)
+```
+
+```{r}
+
+seur <- readRDS(file = "/data/hps/assoc/private/plat_trials/user/nkatiy/results_analysis_2025/objects/PLAT_annotated_celltypes_cellbender_new_idents_chk_viewmastR.rds")
+
+seur <- RenameIdents(object = seur, `16_CD8.N` = "Tcells", `17_CD4.N` = "Tcells", `18_CD4.M` = "Tcells", `19_CD8.EM` = "Tcells", `20_CD8.CM` = "Tcells")
+seur$idents_tcells <- Idents(seur)
+
+seur_tcells <- subset(seur, idents = "Tcells")
+
+sample_pre <- sub("^(.*?_.*?)_.*", "\\1", seur_tcells$orig.ident)
+seur_tcells$indiv <- sample_pre
+
+seur_df <- cbind(cell = Cells(seur_tcells),
+		        seur_tcells[[]],
+			Embeddings(seur_tcells, "umap.unintegrated"),
+			Embeddings(seur_tcells, "umap"),
+			Embeddings(seur_tcells, "ref.umap"),
+			FetchData(seur_tcells, c("IL3", "IL5", "CXCL9", "IL10", "IL18", "IFNG", "IL2", "IL2RA", "CD163", "EGFR", "ERBB2", "NCAM1"), layer = "data"))
+
+# Additional helpful columns
+seur_df$individual <- sapply(strsplit(seur_df$orig.ident, "_"), `[`, 2)
+seur_df$time_point <- factor(seur_df$time_point, levels = c("preA", "Day7", "Day28"))
+
+saveRDS(seur_df, file = "/data/hps/assoc/private/plat_trials/user/nkatiy/results_analysis_2025/objects/cell_metadata_cytokines_Tcells_chk_viewmastR.rds")
+```
+
+####################---------------################
+```{r}
+seur_df$indiv <- factor(seur_df$indiv, levels = c("PLAT05_S043", "PLAT05_S055", "PLAT02_S08", "PLAT02_S15", "PLAT02_S16", "PLAT05_S047", "PLAT05_S053", "PLAT05_S061", "PLAT05_S045", "PLAT05_S041", "PLAT02_S13", "PLAT05_S040", "PLAT02_S12", "PLAT05_S066"))
+
+pdf("./plots/Violinplot_EGFR_chk_viewmastR.pdf")
+seur_df %>%
+	   ggplot(aes(x = indiv, y = EGFR)) +
+	   geom_violin(aes(fill = indiv), scale = "width") +
+	   geom_point(size = 0.5, alpha = 0.2, position = position_jitter()) +
+	   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1, size=16),
+	   plot.title = element_text(size = 16),        # Plot title
+                        axis.title.x = element_text(size = 16),      # X-axis title
+                        axis.title.y = element_text(size = 16),      # Y-axis title
+			axis.text.y = element_text(size = 16),       # Y-axis labels
+			legend.title = element_text(size = 16),      # Legend title
+			legend.text = element_text(size = 16)) +       # Legend text
+	   xlab("Patient") + ylab("Expression") +
+	   ggtitle("EGFR in T cells") +
+	   facet_wrap(~time_point, nrow=3) +
+	   theme(strip.text = element_text(size=16))
+dev.off()
+
+
