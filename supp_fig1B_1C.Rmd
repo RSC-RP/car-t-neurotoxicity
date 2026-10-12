@@ -1,7 +1,7 @@
 
 ---
 title : "UMAP with patient ID and Feature plot for CD163"
-author: "Lindsay Clark, Neerja Katiyar"
+author: "Neerja Katiyar, Lindsay Clark"
 ---
 
 ```{r, libraries, include = FALSE, echo=TRUE}

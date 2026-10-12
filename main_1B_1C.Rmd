@@ -1,0 +1,131 @@
+---
+title : "UMAP with patient ID and Feature plot for CD163"
+author: "Lindsay Clark, Neerja Katiyar"
+---
+
+```{r}
+library(dplyr)
+library(ggplot2)
+library(kableExtra)
+library(gplots)
+library(ggrepel)
+```
+
+```{r}
+# See barplots_dge_2025-07.qmd
+seur_df <- readRDS("./lindsay/data/cell_metadata_2025-10-15.rds")
+
+sample_metadata <-
+	  unique(seur_df[,c("orig.ident", "time_point", "category",
+			                        "batch", "trial", "individual")])
+
+celltypes <- sort(unique((seur_df$kobe_idents)))
+celltype_colors <- dittoSeq::dittoColors(1)[seq_along(celltypes)]
+names(celltype_colors) <- celltypes
+
+group_colors <- RColorBrewer::brewer.pal(4, "Paired")
+names(group_colors) <-
+	  c("Mild_Tox_Day28", "Mild_Tox_preA", "Severe_Tox_Day28",
+	        "Severe_Tox_preA")
+```
+
+## Filtering
+
+Kobe's filtering was slightly different from ours. Within Kobe's annotation, 93.9% of the cells were also in our object, and within our object, 97.7% of the cells were also in Kobe's object. The 250,117 cells overlapping between the two datasets were used in downstream analysis. Total cells per sample are listed in @tbl-cellcounts.
+
+```{r}
+#| label: tbl-cellcounts
+#| tbl-cap: "Cells per sample overlapping between Kobe's and Neerja's filtering."
+seur_df %>%
+	  filter(!is.na(kobe_idents)) %>%
+	    group_by(orig.ident) %>%
+	      summarize(count = n()) %>%
+	        kable() %>% kable_styling()
+```
+
+```{r}
+#| fig.width: 7
+#| fig.height: 7
+#| label: fig-umap_celltype
+#| fig-cap: "UMAP after batch integration, colored by cell type"
+centroids <- seur_df %>%
+	  filter(!is.na(kobe_idents)) %>%
+	    group_by(kobe_idents) %>%
+	      summarize(umap_1 = median(umap_1), umap_2 = median(umap_2))
+
+set.seed(701)
+ord <- sample(which(!is.na(seur_df$kobe_idents)))
+
+pdf("Main_fig1B_UMAP_celltypes.pdf")
+ggplot(seur_df[ord,],
+	            aes(x = umap_1, y = umap_2)) +
+  geom_point(size = 0.5, mapping = aes(color = kobe_idents)) +
+    geom_label_repel(data = centroids,
+		                  mapping = aes(fill = kobe_idents, label = kobe_idents)) +
+  annotate("label", x = c(9,9,3,9,9,9),
+	              y = c(-10.5, -11.5, -11, -12.5, -13.5, -14.5),
+		                 fill = celltype_colors[c(1:3, 5:6, 8)],
+		                 label = celltypes[c(1:3, 5:6, 8)]) +
+  scale_color_manual(values = celltype_colors, guide = "none") +
+    scale_fill_manual(values = celltype_colors, guide = "none") +
+      labs(color = "Cell type") +
+
+theme(legend.position = "bottom", axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1, size=16),
+        plot.title = element_text(size = 16),        # Plot title
+	axis.title.x = element_text(size = 16),      # X-axis title
+	axis.title.y = element_text(size = 16),      # Y-axis title
+	axis.text.y = element_text(size = 16),       # Y-axis labels
+	legend.title = element_text(size = 16),      # Legend title
+	legend.text = element_text(size = 16))        # Legend text
+dev.off()
+
+```
+
+## Cell type barplot
+
+Loss of B and leukemia cells was observed with treatment (@fig-barplot).
+
+```{r}
+#| fig.width: 7
+#| fig.height: 7
+#| label: fig-barplot
+#| fig-cap: "Proportion of each cell type within each sample."
+
+patient_order <- c("PLAT05_S043", "PLAT02_S16", "PLAT02_S08",
+		                      "PLAT05_S053", "PLAT05_S047", "PLAT02_S15",
+				                         "PLAT05_S061", "PLAT05_S045","PLAT05_S041",
+				                         "PLAT02_S13", "PLAT05_S040", "PLAT02_S12",
+							                    "PLAT05_S066", "PLAT05_S055")
+category_mod <- c(Non_responder = "NR", Mild_Tox = "Mild_Tox",
+		                    Severe_Tox = "Severe_Tox",
+				                      Non_responder_Severe_Tox = "NR")
+pdf("Main_fig1C_Barplot_prop.pdf", height=12, width = 12)
+seur_df %>%
+	  filter(!is.na(kobe_idents)) %>%
+	    group_by(orig.ident, kobe_idents) %>%
+	      summarize(n = n()) %>%
+	        mutate(freq = n / sum(n)) %>%
+		  left_join(sample_metadata, by = "orig.ident") %>%
+		    mutate(label = factor(paste(trial, individual, sep = "_"),
+			   levels = rev(patient_order)),
+			   category2 = factor(category_mod[category],
+			   levels = c("NR", "Mild_Tox","Severe_Tox"))) %>%
+  ggplot(aes(y = label,
+	                  x = freq, fill = kobe_idents)) +
+  geom_col() +
+    facet_grid(rows = vars(category2), cols = vars(time_point),
+	                    scales = "free", space = "free_y") +
+  scale_fill_manual(values = celltype_colors) +
+    ylab("Sample") + xlab("Proportion") +
+      labs(fill = "Cell type") +
+theme(legend.position = "bottom", axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1, size=16),
+              plot.title = element_text(size = 16),        # Plot title
+	              axis.title.x = element_text(size = 16),      # X-axis title
+	              axis.title.y = element_text(size = 16),      # Y-axis title
+		              axis.text.y = element_text(size = 16),       # Y-axis labels
+        legend.title = element_text(size = 16),      # Legend title
+        legend.text = element_text(size = 16), strip.text.x = element_text(size=16), strip.text.y = element_text(size=16))        # Legend text
+dev.off()
+
+```
+
