@@ -1,4 +1,8 @@
 
+#title: "script_more_violinplots_paper"
+#author: "Neerja Katiyar"
+#date: "2026-01-28"
+
 library(Seurat)
 
 seur_cm_severe_subset <- readRDS(file = "../CD8_CM_IL10_clustering_analysis/seur_cm_severe_subset_tutorial_dims10_res0.2.rds")
