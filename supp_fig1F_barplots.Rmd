@@ -1,0 +1,208 @@
+
+library(dplyr)
+library(ggplot2)
+library(kableExtra)
+library(gplots)
+library(Seurat)
+library(BPCells) # remotes::install_github("bnprks/BPCells/r")
+library(patchwork)
+library(dittoSeq)
+library(cowplot)
+options(future.globals.maxSize = 1e9)
+
+seur_tcells <- readRDS("./results/seur_Tcells_only.rds")
+
+######################################################
+
+# Get expression and cluster info
+df_EGFR <- FetchData(
+		seur_tcells,
+		vars = c("EGFR")
+    		) %>%
+      mutate(
+          cluster = Idents(seur_tcells),
+	      EGFR_pos = EGFR > 0
+	        )
+
+# Proportion of EGFR+ cells per cluster
+prop_EGFR <- df_EGFR %>%
+  group_by(cluster) %>%
+    summarise(
+        n_cells = n(),
+	    n_EGFR_pos = sum(EGFR_pos),
+	        proportion_EGFR_pos = mean(EGFR_pos)
+		  )
+
+print(prop_EGFR)
+
+prop_EGFR <- prop_EGFR %>%
+  mutate(percent_EGFR_pos = 100 * proportion_EGFR_pos)
+
+write.table(prop_EGFR, "./results/Prop_EGFR_Tcells_only.txt", sep="\t", row.names=F, quote=F)
+
+##########################################################
+
+seurat_object <- RenameIdents(chk, "0" = "EGFR_high", "1" = "EGFR_low", "2" = "EGFR_low", "3" = "EGFR_low", "4" = "EGFR_low", "5" = "EGFR_low", "6" = "EGFR_low", "7" = "EGFR_low","8" = "EGFR_low")
+
+chk.de.markers <- FindMarkers(seurat_object, ident.1 = "EGFR_high", ident.2 = "EGFR_low")
+chk.de.markers_sig <- chk.de.markers %>% filter(p_val_adj < 0.05, abs(avg_log2FC) >= 1)
+
+write.table(chk.de.markers, "DE_clust0_EGFR_pos_vs_others.txt", sep= "\t", quote=FALSE)
+write.table(chk.de.markers_sig, "DE_sig_clust0_EGFR_pos_vs_others.txt", sep= "\t", quote=FALSE)
+
+######################----------------######################
+
+seurat_object1 <- RenameIdents(chk, "0" = "EGFR_high", "1" = "EGFR_low", "2" = "EGFR_low", "3" = "EGFR_low", "4" = "EGFR_low", "5" = "EGFR_low", "6" = "EGFR_low", "7" = "EGFR_high","8" = "EGFR_low")
+
+chk.de.markers1 <- FindMarkers(seurat_object1, ident.1 = "EGFR_high", ident.2 = "EGFR_low")
+chk.de.markers1_sig <- chk.de.markers1 %>% filter(p_val_adj < 0.05, abs(avg_log2FC) >= 1)
+
+write.table(chk.de.markers1, "DE_clust0_7_EGFR_pos_vs_others.txt", sep= "\t", quote=FALSE)
+write.table(chk.de.markers1_sig, "DE_sig_clust0_7_EGFR_pos_vs_others.txt", sep= "\t", quote=FALSE)
+
+######################----------------######################
+
+cd4_naive_day7_egfr_poscells <- WhichCells(seur_CD4_naive_day7, expression = EGFR > 0)
+seur_CD4_naive_day7$EGFR_exp<- ifelse(colnames(seur_CD4_naive_day7) %in% cd4_naive_day7_egfr_poscells, "EGFR_pos", "EGFR_neg")
+
+seur_df_CD4_naive_day7 <- cbind(cell = Cells(seur_CD4_naive_day7),
+                			seur_CD4_naive_day7[[]],
+					Embeddings(seur_CD4_naive_day7, "umap.unintegrated"),
+				        Embeddings(seur_CD4_naive_day7, "umap"),
+					Embeddings(seur_CD4_naive_day7, "ref.umap"),
+					FetchData(seur_CD4_naive_day7, c("IL3", "IL5", "CXCL9", "IL10", "IL18", "IFNG", "IL2", "IL2RA", "CD163", "EGFR", "ERBB2"), layer = "data"))
+
+seur_df_CD4_naive_day7$individual <- sapply(strsplit(seur_df_CD4_naive_day7$orig.ident, "_"), `[`, 2)
+
+seur_df_CD4_naive_day7$indiv <- factor(seur_df_CD4_naive_day7$indiv, levels = c("PLAT05_S043", "PLAT05_S055", "PLAT05_S053", "PLAT05_S047", "PLAT05_S040", "PLAT05_S045", "PLAT02_S13", "PLAT02_S12", "PLAT05_S066"))
+
+seur_CD8_CM <- subset(seur, idents = "20_CD8.CM")
+seur_CD8_CM_day7 <- subset(seur_CD8_CM, subset = time_point == "Day7")
+
+sample_pre <- sub("^(.*?_.*?)_.*", "\\1", seur_CD8_CM_day7$orig.ident)
+seur_CD8_CM_day7$indiv <- sample_pre
+
+cd8_day7_CM_egfr_poscells <- WhichCells(seur_CD8_CM_day7, expression = EGFR > 0)
+seur_CD8_CM_day7$EGFR_exp<- ifelse(colnames(seur_CD8_CM_day7) %in% cd8_day7_CM_egfr_poscells, "EGFR_pos", "EGFR_neg")
+
+seur_df_CD8_CM_day7 <- cbind(cell = Cells(seur_CD8_CM_day7),
+			seur_CD8_CM_day7[[]],
+		        Embeddings(seur_CD8_CM_day7, "umap.unintegrated"),
+			Embeddings(seur_CD8_CM_day7, "umap"),
+			Embeddings(seur_CD8_CM_day7, "ref.umap"),
+			FetchData(seur_CD8_CM_day7, c("IL3", "IL5", "CXCL9", "IL10", "IL18", "IFNG", "IL2", "IL2RA", "CD163", "EGFR", "ERBB2"), layer = "data"))
+
+# Additional helpful columns
+seur_df_CD8_CM_day7$individual <- sapply(strsplit(seur_df_CD8_CM_day7$orig.ident, "_"), `[`, 2)
+
+seur_df_CD8_CM_day7$indiv <- factor(seur_df_CD8_CM_day7$indiv, levels = c("PLAT05_S043", "PLAT05_S055", "PLAT05_S053", "PLAT05_S047", "PLAT05_S045", "PLAT02_S13", "PLAT02_S12", "PLAT05_S040", "PLAT05_S066"))
+
+##############---------------------##########################################
+
+seur <- readRDS("./objects/PLAT_annotated_celltypes_cellbender_CITEseq_ref_new_idents_markers_chk_viewmastR.rds")
+
+seur <- RenameIdents(object = seur, `16_CD8.N` = "CD8", `19_CD8.EM` = "CD8", `20_CD8.CM` = "CD8")
+seur$idents_tcells <- Idents(seur)
+
+seur_CD8 <- subset(seur, idents = "CD8")
+seur_CD8_day7 <- subset(seur_CD8, subset = time_point == "Day7")
+
+sample_pre <- sub("^(.*?_.*?)_.*", "\\1", seur_CD8_day7$orig.ident)
+seur_CD8_day7$indiv <- sample_pre
+
+seur_df <- cbind(cell = Cells(seur_CD8_day7),
+		seur_CD8_day7[[]],
+		Embeddings(seur_CD8_day7, "umap.unintegrated"),
+		Embeddings(seur_CD8_day7, "umap"),
+		Embeddings(seur_CD8_day7, "ref.umap"),
+		FetchData(seur_CD8_day7, c("IL3", "IL5", "CXCL9", "IL10", "IL18", "IFNG", "IL2", "IL2RA", "CD163", "EGFR", "ERBB2"), layer = "data"))
+
+# Additional helpful columns
+seur_df$individual <- sapply(strsplit(seur_df$orig.ident, "_"), `[`, 2)
+seur_df$indiv <- factor(seur_df$indiv, levels = c("PLAT05_S043", "PLAT05_S055", "PLAT05_S053", "PLAT05_S047", "PLAT05_S045", "PLAT02_S13", "PLAT05_S040", "PLAT02_S12", "PLAT05_S066"))
+
+seur_df_egfr_pos <- subset(seur_df, subset = EGFR > 0)
+seur_df_egfr_neg <- subset(seur_df, subset = EGFR < 0.1)
+
+seur_df_egfr_pos_df <- as.data.frame(table(seur_df_egfr_pos$indiv))
+names(seur_df_egfr_pos_df) <- c("ID", "EGFR_pos")
+seur_df_egfr_neg_df <- as.data.frame(table(seur_df_egfr_neg$indiv))
+names(seur_df_egfr_neg_df) <- c("ID", "EGFR_neg")
+
+df_bar <- merge(seur_df_egfr_pos_df, seur_df_egfr_neg_df, by = "ID", all.x=T, all.y=T)
+rownames(df_bar) <- unique(df_bar$ID)
+
+library(reshape2)
+df_bar_new <- melt((df_bar), id.vars = c("ID"), variable.name = "EGFR_type", value.name = "Count")
+
+pdf("./scripts/JCI_letter_paper_figs_scripts/Barplot_paper_CD8_Day7_EGFR_chk_viewmastR.pdf")
+ggplot(df_bar_new, aes(fill=EGFR_type, y=Count, x=ID)) +
+	geom_bar(position="fill", stat="identity", width = 0.5, color = "black") +
+	theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1, size=16),
+        plot.title = element_text(size = 16),        # Plot title
+	axis.title.x = element_text(size = 16),      # X-axis title
+	axis.title.y = element_text(size = 16),      # Y-axis title
+	axis.text.y = element_text(size = 16),       # Y-axis labels
+	legend.title = element_text(size = 16),      # Legend title
+	legend.text = element_text(size = 16), strip.text.x = element_text(size=16), strip.text.y = element_text(size=16)) +     # Legend text
+	scale_fill_manual(values=c("black", "grey")) +
+	ggtitle("Day7 CD8")
+	dev.off()
+
+################3--------------#########################
+
+seur <- RenameIdents(object = seur, `17_CD4.N` = "CD4", `18_CD4.M` = "CD4")
+seur$idents_tcells <- Idents(seur)
+
+seur_CD4 <- subset(seur, idents = "CD4")
+seur_CD4_day7 <- subset(seur_CD4, subset = time_point == "Day7")
+
+sample_pre <- sub("^(.*?_.*?)_.*", "\\1", seur_CD4_day7$orig.ident)
+seur_CD4_day7$indiv <- sample_pre
+
+seur_df <- cbind(cell = Cells(seur_CD4_day7),
+           seur_CD4_day7[[]],
+		Embeddings(seur_CD4_day7, "umap.unintegrated"),
+		Embeddings(seur_CD4_day7, "umap"),
+		Embeddings(seur_CD4_day7, "ref.umap"),
+		FetchData(seur_CD4_day7, c("IL3", "IL5", "CXCL9", "IL10", "IL18", "IFNG", "IL2", "IL2RA", "CD163", "EGFR", "ERBB2"), layer = "data")
+										)
+
+# Additional helpful columns
+seur_df$individual <- sapply(strsplit(seur_df$orig.ident, "_"), `[`, 2)
+
+seur_df$indiv <- factor(seur_df$indiv, levels = c("PLAT05_S043", "PLAT05_S055", "PLAT05_S053", "PLAT05_S047", "PLAT05_S045", "PLAT02_S13", "PLAT05_S040", "PLAT02_S12", "PLAT05_S066"))
+
+seur_df_egfr_pos <- subset(seur_df, subset = EGFR > 0)
+seur_df_egfr_neg <- subset(seur_df, subset = EGFR < 0.1)
+
+seur_df_egfr_pos_df <- as.data.frame(table(seur_df_egfr_pos$indiv))
+names(seur_df_egfr_pos_df) <- c("ID", "EGFR_pos")
+seur_df_egfr_neg_df <- as.data.frame(table(seur_df_egfr_neg$indiv))
+names(seur_df_egfr_neg_df) <- c("ID", "EGFR_neg")
+
+df_bar <- merge(seur_df_egfr_pos_df, seur_df_egfr_neg_df, by = "ID", all.x=TRUE, all.y=TRUE)
+rownames(df_bar) <- unique(df_bar$ID)
+
+library(reshape2)
+df_bar_new <- melt((df_bar), id.vars = c("ID"), variable.name = "EGFR_type", value.name = "Count")
+
+# Define the desired order of levels
+df_bar_new$ID <- factor(df_bar_new$ID, levels = c("PLAT05_S043", "PLAT05_S055", "PLAT05_S053", "PLAT05_S047", "PLAT05_S045", "PLAT02_S13", "PLAT05_S040", "PLAT02_S12", "PLAT05_S066"))
+
+pdf("./scripts/JCI_letter_paper_figs_scripts/Barplot_paper_CD4_Day7_EGFR_chk_viewmastR.pdf")
+ggplot(df_bar_new, aes(fill=EGFR_type, y=Count, x=ID)) +
+	geom_bar(position="fill", stat="identity", width = 0.5, color = "black") +
+	theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1, size=16),
+        plot.title = element_text(size = 16),        # Plot title
+	axis.title.x = element_text(size = 16),      # X-axis title
+	axis.title.y = element_text(size = 16),      # Y-axis title
+	axis.text.y = element_text(size = 16),       # Y-axis labels
+	legend.title = element_text(size = 16),      # Legend title
+	legend.text = element_text(size = 16), strip.text.x = element_text(size=16), strip.text.y = element_text(size=16)) +     # Legend text
+	scale_fill_manual(values=c("black", "grey")) +
+	ggtitle("Day7 CD4")
+dev.off()
+
+###################################################################################
+
